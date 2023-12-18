@@ -3,6 +3,7 @@ import soundfile as sf #requires numpy.  Must install that first.  For reading t
 from gtts import gTTS # Text to Speech conversion
 import openai # GPT-3 API
 from configparser import ConfigParser #for retrieving environment variables.
+import gradio as gr
 
 #To get speechrecognition to work on a mac, you need to:
 #brew install portaudio
@@ -18,7 +19,7 @@ config.read('config.ini')
 # Set the API key for OpenAI
 openai.api_key = config.get("openai", "api_key")
 
-# use the OpenAI GPT-3 (ChatGPT) model to generate a response to the input text
+# use the OpenAI GPT-3 model to generate a response to the input text
 def generate_response(text):
     response = openai.Completion.create(
         engine="text-davinci-003",
@@ -48,7 +49,7 @@ def text_to_speech(text):
     sd.play(data, sr)
     status = sd.wait()
 
-prev_text = ""
+conversation = list()
 
 while True:
     # Ask user for a question
@@ -57,30 +58,42 @@ while True:
 
     # listen for speech
     with sr.Microphone(device_index=5) as source:
-        print("Say something!")
+        print("Speak!")
         audio = r.listen(source)
 
     # recognize the speech
     try:
         text = r.recognize_google(audio, show_all=False)
-        print(text)
     except sr.UnknownValueError:
         print("Could not understand audio")
     except sr.RequestError as e:
         print("Error; {0}".format(e))
-        
-    prompt = prev_text + text
+    
+    # Track the conversation by adding the question
+    conversation.append(text)
+    
+    # Convert for GPT-3 into a string
+    prompt = "\n" .join(conversation)
 
     # Send it to GPT-3
-    chatgpt=generate_response(prompt)
+    gpt3=generate_response(prompt)
     
-    prev_text = chatgpt
+    # Append to the conversation GPT-3's response
+    conversation.append(gpt3)
 
-    # Print the response form GPT-4
-    print(chatgpt)
+    # Print conversation for the sake of debugging.
+    for dialog in conversation:
+        print(dialog)
+    
+    # Speak response
+    print(len(gpt3))
+    if len(gpt3) >= 1:
+        text_to_speech(gpt3)
 
-    # Speak it.
-    text_to_speech(chatgpt)
+    # If the question was "goodbye", end the conversation.
+    if "goodbye" in text.lower():
+        break
+
 
 # Needed to find out my sound device numbers.  This will help me do that.
 # devices = sd.query_devices()
